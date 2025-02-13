@@ -1,4 +1,4 @@
-#PSYC 259 Homework 3 - Data Structure
+#PSYC 259 Homework 3 - Data Structure- Arineh Moradian
 #For full credit, provide answers for at least 8/11 questions
 
 #List names of students collaborating with: 
@@ -22,10 +22,10 @@ rs_old <- url_old %>% read_html() %>% html_nodes(xpath='/html/body/table[2]') %>
   select(1, 4, 3, 7) %>% rename(Rank = X1, Artist = X3, Song = X4, Year = X7) %>% filter(Year != "YEAR") 
 
 # If there's a security error, add:
-#url %>% httr::GET(config = httr::config(ssl_verifypeer = FALSE)) %>% read_html()
+# url %>% httr::GET(config = httr::config(ssl_verifypeer = FALSE)) %>% read_html()
 
 #OR
-load("rs_data.RData")
+load("/Users/arinehmoradian/Documents/PSYC259/GitHub/259-data-structure-hw/rs_data.RData")
 
 ### Question 1 ---------- 
 
@@ -38,6 +38,20 @@ load("rs_data.RData")
 # Why did some of the artist-song fail to match up?
 
 #ANSWER
+# merging old and new data sets
+rs_joined_orig <- full_join(rs_new, rs_old, by = c("Artist", "Song"))
+
+# see how many rows
+nrow(rs_joined_orig)
+
+# taking a look!
+View(rs_joined_orig)
+
+# I see a lot of NA's for Rank.y, Year.y, Rank.x, and Year.x, showing that some information is
+# not available or the format is not consistent so it is not showing up.
+# Some of the artist-songs failed to match up because of issues in spelling and punctuation. 
+# I see "Guns 'n' Roses and Guns 'N' Roses.
+
 
 
 
@@ -50,6 +64,22 @@ load("rs_data.RData")
 # Make Rank and Year into integer variables for rs_old before binding them into rs_all
 
 #ANSWER
+# adding new variable to each data set (New and Old)
+rs_new <- rs_new %>% mutate(Source = "New")
+rs_old <- rs_old %>% mutate(Source = "Old")
+
+# making rank and year into integer variables for rs_old, then binding then into rs_all
+rs_old <- rs_old %>% mutate(Rank = as.integer(Rank), Year = as.integer(Year))
+
+# joining the two datasets
+rs_all <- bind_rows(rs_new, rs_old)
+
+# viewing
+str(rs_all)
+head(rs_all)
+View(rs_all)
+
+
 
 
 ### Question 3 ----------
@@ -63,6 +93,26 @@ load("rs_data.RData")
 
 #ANSWER
 
+# removing "The" from every artist/song, replacing & with and, removing punctuation, making all artists/song lowercase and removing extra spaces
+# string_ wasn't working so I used str_.. not sure if the directions meant str_ but used the full name.
+
+rs_all <- rs_all %>%
+  mutate(
+    Artist = str_remove_all(Artist, "\\bThe\\b"),  
+    Song = str_remove_all(Song, "\\bThe\\b"),
+    
+    Artist = str_replace_all(Artist, "&", "and"),  
+    Song = str_replace_all(Song, "&", "and"),
+    
+    Artist = str_remove_all(Artist, "[[:punct:]]"),  
+    Song = str_remove_all(Song, "[[:punct:]]"),
+    
+    Artist = str_to_lower(str_trim(Artist)),  
+    Song = str_to_lower(str_trim(Song))
+  )
+
+
+
 
 ### Question 4 ----------
 
@@ -75,6 +125,21 @@ load("rs_data.RData")
 # in the new rs_joined compared to the original. Use nrow to check (there should be 799 rows)
 
 #ANSWER
+# splitting rs_all into two datasets- old and new
+rs_old_clean <- rs_all %>% filter(Source == "Old") %>% select(Artist, Song, Rank, Year, Source) %>% slice_head(n = 500)
+rs_new_clean <- rs_all %>% filter(Source == "New") %>% select(Artist, Song, Rank, Year, Source) %>% slice_head(n = 500)
+
+# appending _Old and _New to year and rank- not default of x and y
+rs_joined <- full_join(rs_old_clean, rs_new_clean, by = c("Artist", "Song"), suffix = c("_Old", "_New"))
+
+# number of rows and viewing the data!
+nrow(rs_joined)
+View(rs_joined)
+
+# the string cleaning did improve matches, there are fewer rows of data (so all the duplicates are gone). Double-checked: there are 799 rows
+
+
+
 
 
 ### Question 5 ----------
@@ -89,6 +154,19 @@ load("rs_data.RData")
 
 #ANSWER
 
+# removing variable (source), removing rows where Rank_New or Rank_Old is NA, calculating Rank_Change- subtracting new rank from old rank
+# sorting by rank change
+
+rs_joined <- rs_joined %>%
+  select(-Source_Old, -Source_New) %>% 
+  filter(!is.na(Rank_Old) & !is.na(Rank_New)) %>% 
+  mutate(Rank_Change = Rank_Old - Rank_New) %>% 
+  arrange(Rank_Change)  
+
+View(rs_joined)
+
+
+
 
 ### Question 6 ----------
 
@@ -99,6 +177,28 @@ load("rs_data.RData")
 # Which decade improved the most?
 
 #ANSWER
+# taking the year, turning it into a decade with "s", is a factor
+rs_joined <- rs_joined %>%
+  mutate(Decade = factor(paste0(floor(Year_Old / 10) * 10, "s")))  
+
+# grouping by decade and summarizing the mean rank_change for songs in each decade
+decade_summary <- rs_joined %>%
+  group_by(Decade) %>%
+  summarize(Mean_Rank_Change = mean(Rank_Change, na.rm = TRUE)) %>%
+  arrange(desc(Mean_Rank_Change)) 
+
+# printing
+print(decade_summary)
+
+# the best decade! and printing
+best_decade <- decade_summary %>% slice_max(Mean_Rank_Change)
+print(best_decade)
+
+
+# The 1990's improved the most!
+
+
+
 
 
 
@@ -111,6 +211,25 @@ load("rs_data.RData")
 
 #ANSWER
 
+# see number of songs in each decade
+decade_counts <- fct_count(rs_joined$Decade)
+
+# then printing!
+print(decade_counts)
+
+# limit decade TO 3 levels
+rs_joined <- rs_joined %>%
+  mutate(Decade_Lumped = fct_lump(Decade, n = 3))
+
+# seeing the proportion of songs in each of the top three decades, using fct_count
+lumped_counts <- fct_count(rs_joined$Decade_Lumped, prop = TRUE)
+
+# printing!
+print(lumped_counts)
+
+
+
+
 
 
 ### Question 8 ---------- 
@@ -120,6 +239,20 @@ load("rs_data.RData")
 # Use parse_date_time to fix it
 
 #ANSWER
+# reading csv files into a tibble- calling it top 20
+top20 <- read_csv("top_20.csv")
+
+# fixing release_date, using parse_date_time- organizing the orders
+top20 <- top20 %>%
+  mutate(Release_Date = parse_date_time(Release_Date, orders = c("Y-m-d", "m/d/Y", "d/m/Y")))
+
+# checking the top 20!
+
+glimpse(top20)
+
+
+
+
 
 
 ### Question 9 --------
@@ -128,7 +261,23 @@ load("rs_data.RData")
 # use pivot_wider to fix the issue so that bpm and key are columns
 # overwrite top20 with the pivoted data (there should now be 20 rows!)
 
+
 #ANSWER
+
+# load("/Users/arinehmoradian/Documents/PSYC259/GitHub/259-data-structure-hw/top_20.csv")
+
+# using pivot_wider to fix the issue of mixing two values into one column
+top20 <- top20 %>%
+  pivot_wider(names_from = Style, values_from = Value)
+
+# checking the data
+glimpse(top20)
+
+# checking the rows
+nrow(top20)  
+
+
+
 
 
 
@@ -143,6 +292,7 @@ load("rs_data.RData")
 # Count the number of songs that were released in each season
 
 #ANSWER
+
 
 
 
