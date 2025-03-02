@@ -1,5 +1,5 @@
 #PSYC 259 Homework 3 - Data Structure- Arineh Moradian
-#For full credit, provide answers for at least 8/11 questions
+#For full credit, provide answers for at least 8/11 questions (9/11)
 
 #List names of students collaborating with: 
 
@@ -128,6 +128,9 @@ rs_all <- rs_all %>%
 # splitting rs_all into two datasets- old and new
 rs_old_clean <- rs_all %>% filter(Source == "Old") %>% select(Artist, Song, Rank, Year, Source) %>% slice_head(n = 500)
 rs_new_clean <- rs_all %>% filter(Source == "New") %>% select(Artist, Song, Rank, Year, Source) %>% slice_head(n = 500)
+
+#Mcomment: careful with the slice function, the note about 500 lines is more so as a check that the filtering works.
+         # by forcing the slice, you can't make sure the code works and then problem-solve accordingly
 
 # appending _Old and _New to year and rank- not default of x and y
 rs_joined <- full_join(rs_old_clean, rs_new_clean, by = c("Artist", "Song"), suffix = c("_Old", "_New"))
@@ -293,7 +296,15 @@ nrow(top20)
 
 #ANSWER
 
-
+#Key
+top20 <- left_join(top20, rs_joined, by = c("Artist","Song"))
+top20 <- top20 %>% mutate(Release_Month = month(Release_Date, label = T),
+                          Season = fct_collapse(Release_Month,
+                                                Winter = c("Dec", "Jan","Feb"),
+                                                Spring = c("Mar","Apr","May"),
+                                                Summer = c("Jun", "Jul","Aug"),
+                                                Fall = c("Sep", "Oct", "Nov")))
+fct_count(top20$Season)
 
 
 ### Question 11 ---------
@@ -305,5 +316,7 @@ nrow(top20)
 
 #ANSWER
 
-
+#Key
+top20 <- top20 %>% mutate(Quality = factor(ifelse(str_detect(Key, "m"), "Minor", "Major")))
+top20 %>% filter(Quality == "Minor") %>% slice_min(Rank_New)
 
